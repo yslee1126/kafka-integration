@@ -97,7 +97,7 @@ class FileWatcherService(
                     }
 
                 } catch (e: ClosedWatchServiceException) {
-                    logger.info("WatchService 가 닫혀서 감시 루프 종료")
+                    logger.info("WatchService 가 닫혀서 감시 루프 종료", e)
                     break
                 } catch (e: Exception) {
                     logger.error("이벤트 처리 중 오류: {}", e.message, e)
@@ -106,7 +106,7 @@ class FileWatcherService(
             }
 
         } catch (e: InterruptedException) {
-            logger.info("파일 감시 스레드 중단됨")
+            logger.info("파일 감시 스레드 중단됨", e)
             Thread.currentThread().interrupt()
         } catch (e: Exception) {
             logger.error("파일 감시 중 치명적 오류: {}", e.message, e)

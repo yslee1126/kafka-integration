@@ -24,11 +24,13 @@ docker logs -f kafdrop
 docker compose down -v
 ```
 
+### 어플리케이션 빌드 및 실행  
+```
+# 사용가능한 파라메터와 함께 실행, 서버 실행할때 로깅 경로 필요 
+>./gradlew bootRun -Dfile.watch.dir=/Users/username/documents/files -Dspring.profiles.active=dev
+```
+
 ### xml 생성 테스트 
 ```
 >echo '<?xml version="1.0"?><test>consumer test</test>' > consumer-test.xml
 ```
-
-
-
-
