@@ -24,8 +24,79 @@ docker logs -f kafdrop
 docker compose down -v
 ```
 
+### Mac Kafka 설치 
+```
+>brew install kafka
+>cd /usr/local/etc/kafka
+// log.dir 경로 수정, listener 포트 9092 아닌 29092 로 2군데 수정 
+>vi server.properties 
+>cd /usr/local/opt/kafka/bin
+>./kafka-storage random-uuid
+>./kafka-storage format \
+  --config /usr/local/etc/kafka/server.properties \
+  --cluster-id uh05ZR-2SCeR8WSBksMxJg \
+  --standalone
+>vi start.sh
+#!/bin/bash
+
+KAFKA_BIN=/usr/local/opt/kafka/bin
+CONFIG_FILE=/usr/local/etc/kafka/server.properties
+LOG_DIR=/usr/local/var/lib/kafka-logs
+LOG_FILE=$LOG_DIR/kafka.log
+PID_FILE=$LOG_DIR/kafka.pid
+
+# Kafka 실행
+echo "Starting Kafka..."
+$KAFKA_BIN/kafka-server-start $CONFIG_FILE > $LOG_FILE 2>&1 &
+
+# 백그라운드 PID 저장
+echo $! > $PID_FILE
+echo "Kafka started with PID $(cat $PID_FILE)"
+>vi stop.sh
+#!/bin/bash
+
+LOG_DIR=/usr/local/var/lib/kafka-logs
+PID_FILE=$LOG_DIR/kafka.pid
+
+if [ -f $PID_FILE ]; then
+  PID=$(cat $PID_FILE)
+  echo "Stopping Kafka (PID $PID)..."
+  kill $PID
+  rm $PID_FILE
+  echo "Kafka stopped."
+else
+  echo "No Kafka PID file found. Kafka might not be running."
+fi
+>vi tail.sh
+#!/bin/bash
+
+# 로그 파일 경로
+LOG_FILE=/usr/local/var/lib/kafka-logs/kafka.log
+
+if [ ! -f "$LOG_FILE" ]; then
+  echo "Kafka 로그 파일이 없습니다: $LOG_FILE"
+  exit 1
+fi
+
+# 옵션 처리
+if [ -z "$1" ]; then
+  # 옵션 없으면 실시간 로그
+  tail -f "$LOG_FILE"
+elif [[ "$1" =~ ^-?[0-9]+$ ]]; then
+  # 숫자 옵션이면 최근 N라인 출력
+  tail -n "$1" "$LOG_FILE"
+else
+  echo "사용법: $0 [라인수]"
+  echo "  옵션 없으면 실시간 로그(-f)"
+  echo "  숫자 옵션: 최근 N라인 출력 (예: -5000)"
+  exit 1
+fi
+
+```
+
 ### 어플리케이션 빌드 및 실행  
 ```
+# 우선 개발 환경에 맞춰서 모니터링 폴더를 생성합니다. 
 # 사용가능한 파라메터와 함께 실행, 서버 실행할때 로깅 경로 필요 
 >./gradlew bootRun -Dfile.watch.dir=/Users/username/documents/files -Dspring.profiles.active=dev
 ```
