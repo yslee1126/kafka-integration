@@ -6,9 +6,9 @@ import jakarta.annotation.PreDestroy
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.kafka.core.KafkaTemplate
-import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import java.io.File
+import java.nio.file.ClosedWatchServiceException
 import java.nio.file.FileSystems
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -38,6 +38,8 @@ class FileWatcherService(
 
     private var watchService: WatchService? = null
     private val isRunning = AtomicBoolean(false)
+    // watchForFileChanges() 실행 시 현재 스레드 기억
+    private var watcherThread: Thread? = null
 
     @PostConstruct
     fun startWatching() {
@@ -57,26 +59,27 @@ class FileWatcherService(
             logger.info("🔍 파일 감시 시작: {} (패턴: {})", watchDirectory, filePattern)
             logger.info("📡 이벤트 기반 실시간 감시 모드 (폴링 아님!)")
 
-            CompletableFuture.runAsync {
-                watchForFileChanges()
-            }
+            CompletableFuture.runAsync { watchForFileChanges() }
+
 
         } catch (e: Exception) {
             logger.error("파일 감시 서비스 시작 실패: {}", e.message, e)
         }
     }
 
-    fun watchForFileChanges(): CompletableFuture<Void> {
+    fun watchForFileChanges() {
         isRunning.set(true)
 
         try {
-            logger.info("🚀 파일 감시 스레드 시작: {}", Thread.currentThread().name)
+            // 현재 스레드 참조 저장
+            watcherThread = Thread.currentThread()
+            logger.info("🚀 파일 감시 스레드 시작: {}", watcherThread)
 
             while (isRunning.get()) {
                 try {
                     // ⭐ 진짜 이벤트 기반: take()는 이벤트가 발생할 때까지 블로킹
-                    // 하지만 우아한 종료를 위해 poll() 사용 (1초 타임아웃)
-                    val key = watchService?.poll(1, TimeUnit.SECONDS)
+                    // 하지만 우아한 종료를 위해 poll() 사용
+                    val key = watchService?.poll(200, TimeUnit.MILLISECONDS)
 
                     if (key == null) {
                         // 타임아웃 - 종료 체크 후 계속
@@ -93,6 +96,9 @@ class FileWatcherService(
                         break
                     }
 
+                } catch (e: ClosedWatchServiceException) {
+                    logger.info("WatchService 가 닫혀서 감시 루프 종료")
+                    break
                 } catch (e: Exception) {
                     logger.error("이벤트 처리 중 오류: {}", e.message, e)
                     Thread.sleep(1000) // 오류 시 잠깐 대기
@@ -108,8 +114,6 @@ class FileWatcherService(
             logger.info("🛑 파일 감시 스레드 종료: {}", Thread.currentThread().name)
             isRunning.set(false)
         }
-
-        return CompletableFuture.completedFuture(null)
     }
 
     private fun processWatchEvents(key: WatchKey) {
@@ -147,9 +151,6 @@ class FileWatcherService(
 
     private fun handleFileCreated(fileName: String) {
         logger.info("🆕 파일 생성 감지: {} (스레드: {})", fileName, Thread.currentThread().name)
-
-        // 파일이 완전히 쓰여질 때까지 잠시 대기
-        Thread.sleep(100)
 
         val file = File(watchDirectory, fileName)
         if (waitForFileStability(file)) {
@@ -259,8 +260,12 @@ class FileWatcherService(
         try {
             logger.info("🛑 파일 감시 서비스 종료 중...")
 
+            // 먼저 실행 중단 플래그 설정
             isRunning.set(false)
+
             watchService?.close()
+
+            watcherThread?.interrupt() // poll()을 바로 깨어나게 함
 
             logger.info("✅ 파일 감시 서비스 종료 완료")
         } catch (e: Exception) {

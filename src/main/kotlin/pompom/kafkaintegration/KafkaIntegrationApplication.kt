@@ -7,8 +7,6 @@ import org.springframework.scheduling.annotation.EnableAsync
 import org.springframework.scheduling.annotation.EnableScheduling
 
 @SpringBootApplication
-@EnableAsync
-@EnableScheduling
 class KafkaIntegrationApplication
 
 fun main(args: Array<String>) {

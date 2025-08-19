@@ -22,12 +22,11 @@ class XmlFileConsumer (
 
     @KafkaListener(
         topics = ["xml-file-notifications"], 
-        groupId = "file-arrival-monitor-group",
-        containerFactory = "kafkaListenerContainerFactory"
+        groupId = "file-arrival-monitor-group"
     )
     fun handleFileArrival(@Payload message: String) {
         try {
-            logger.info("message 도착 : {}", message)
+            logger.info("Consumer instance=${this.hashCode()}, thread=${Thread.currentThread().name}, message=$message")
             val jsonNode = objectMapper.readTree(message)
 
             val fileName = jsonNode.get("file_name")?.asText() ?: "unknown"
